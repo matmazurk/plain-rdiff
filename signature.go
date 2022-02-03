@@ -3,10 +3,15 @@ package main
 import "encoding/binary"
 
 func CalculateAndSendChecksums(bufferedReader bufferedReader, checksumsChan chan []byte) error {
+	defer close(checksumsChan)
+
 	for {
-		err := bufferedReader.ReadWindow()
+		anyReads, err := bufferedReader.ReadWindow()
 		if err != nil {
 			return err
+		}
+		if !anyReads {
+			return nil
 		}
 
 		checksumsChan <- getChecksumsBundle(calculateChecksum(bufferedReader), bufferedReader.MD4())
@@ -22,14 +27,15 @@ func calculateChecksum(br bufferedReader) uint32 {
 
 	var b uint32
 	offsetedLen := br.Offset() + int64(br.Len())
-	for ii, i := br.Offset(), 0; i < int(offsetedLen); i++ {
-		b += uint32(offsetedLen-ii+1) * uint32(br.Get(i))
+	for ii, i := br.Offset(), 0; ii < int64(offsetedLen); i++ {
+		b += uint32(offsetedLen-ii) * uint32(br.Get(i))
+		ii++
 	}
 	return b<<16 | a
 }
 
 func getChecksumsBundle(rollingChecksum uint32, hash []byte) []byte {
-	var rollingChecksumBytes []byte
-	binary.BigEndian.PutUint32(rollingChecksumBytes, rollingChecksum)
-	return append(rollingChecksumBytes, hash...)
+	checksums := make([]byte, 4)
+	binary.BigEndian.PutUint32(checksums, rollingChecksum)
+	return append(checksums, hash...)
 }
