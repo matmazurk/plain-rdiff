@@ -2,7 +2,11 @@ package main
 
 import "encoding/binary"
 
-func CalculateAndSendChecksums(bufferedReader bufferedReader, checksumsChan chan []byte) error {
+func CalculateAndSendChecksums(
+	bufferedReader bufferedReader,
+	checksumsChan chan []byte,
+	checksumCalculation func([]byte, int64) uint32,
+) error {
 	defer close(checksumsChan)
 
 	for {
@@ -14,24 +18,13 @@ func CalculateAndSendChecksums(bufferedReader bufferedReader, checksumsChan chan
 			return nil
 		}
 
-		checksumsChan <- getChecksumsBundle(calculateChecksum(bufferedReader), bufferedReader.MD4())
+		checksum := checksumCalculation(bufferedReader.Buf(), bufferedReader.Offset())
+		checksumsChan <- getChecksumsBundle(checksum, bufferedReader.MD4())
 
 		if bufferedReader.isEOF() {
 			return nil
 		}
 	}
-}
-
-func calculateChecksum(br bufferedReader) uint32 {
-	a := br.SumBufferBytes()
-
-	var b uint32
-	offsetedLen := br.Offset() + int64(br.Len())
-	for ii, i := br.Offset(), 0; ii < int64(offsetedLen); i++ {
-		b += uint32(offsetedLen-ii) * uint32(br.Get(i))
-		ii++
-	}
-	return b<<16 | a
 }
 
 func getChecksumsBundle(rollingChecksum uint32, hash []byte) []byte {
