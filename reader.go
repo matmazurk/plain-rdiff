@@ -13,7 +13,7 @@ type ReaderSeeker interface {
 }
 
 type bufferedReader struct {
-	ReaderSeeker
+	r            ReaderSeeker
 	windowLength uint32
 	buffer       []byte
 	length       uint32
@@ -23,23 +23,24 @@ type bufferedReader struct {
 
 func NewBufferedReader(windowLength uint32, readerSeeker ReaderSeeker) bufferedReader {
 	br := bufferedReader{
+		r:            readerSeeker,
 		windowLength: windowLength,
 		buffer:       make([]byte, windowLength),
 	}
 	return br
 }
 
-func (br *bufferedReader) ReadWindow() error {
-	readBytes, err := br.ReadAt(br.buffer, br.offset)
-	if err != nil && errors.Is(err, io.EOF) {
-		return err
+func (br *bufferedReader) ReadWindow() (bool, error) {
+	readBytes, err := br.r.ReadAt(br.buffer, br.offset+int64(br.length))
+	if err != nil && !errors.Is(err, io.EOF) {
+		return readBytes > 0, err
 	}
 	if errors.Is(err, io.EOF) {
 		br.eof = true
 	}
+	br.offset += int64(br.length)
 	br.length = uint32(readBytes)
-	br.offset, err = br.Seek(0, 1)
-	return err
+	return readBytes > 0, nil
 }
 
 func (br *bufferedReader) Offset() int64 {
@@ -64,10 +65,14 @@ func (br *bufferedReader) isEOF() bool {
 
 func (br *bufferedReader) MD4() []byte {
 	h := md4.New()
-	h.Write(br.buffer[:len(br.buffer)-int(br.length)])
+	h.Write(br.buffer[:br.length])
 	return h.Sum(nil)
 }
 
 func (br *bufferedReader) Get(index int) byte {
 	return br.buffer[index]
+}
+
+func (br *bufferedReader) Buf() []byte {
+	return br.buffer[:br.length]
 }
