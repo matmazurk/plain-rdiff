@@ -12,14 +12,16 @@ type ReaderSeeker interface {
 
 type bufferedReader struct {
 	r            ReaderSeeker
-	windowLength uint32
+	windowLength int
 	buffer       []byte
-	length       uint32
+	length       int
 	offset       int64
 	eof          bool
 }
 
-func NewBufferedReader(windowLength uint32, readerSeeker ReaderSeeker) bufferedReader {
+var ErrEmptyBuffer = errors.New("empty buffer- cannot pop")
+
+func NewBufferedReader(windowLength int, readerSeeker ReaderSeeker) bufferedReader {
 	br := bufferedReader{
 		r:            readerSeeker,
 		windowLength: windowLength,
@@ -28,24 +30,50 @@ func NewBufferedReader(windowLength uint32, readerSeeker ReaderSeeker) bufferedR
 	return br
 }
 
-func (br *bufferedReader) ReadWindow() (bool, error) {
+func (br *bufferedReader) ReadWindow() (int, error) {
 	readBytes, err := br.r.ReadAt(br.buffer, br.offset+int64(br.length))
 	if err != nil && !errors.Is(err, io.EOF) {
-		return readBytes > 0, err
+		return readBytes, err
 	}
 	if errors.Is(err, io.EOF) {
 		br.eof = true
 	}
 	br.offset += int64(br.length)
-	br.length = uint32(readBytes)
-	return readBytes > 0, nil
+	br.length = readBytes
+	return readBytes, nil
+}
+
+func (br *bufferedReader) PopAndShift() (byte, error) {
+	if br.length == 0 {
+		return byte(0), ErrEmptyBuffer
+	}
+	buf := make([]byte, 1)
+	readBytes, err := br.r.ReadAt(buf, br.offset+int64(br.length))
+	if err != nil && !errors.Is(err, io.EOF) {
+		return byte(0), err
+	}
+	if errors.Is(err, io.EOF) {
+		br.eof = true
+	}
+	newByte := buf[0]
+	pop := br.buffer[0]
+	for i := 0; i < len(br.buffer)-1; i++ {
+		br.buffer[i] = br.buffer[i+1]
+	}
+	br.buffer[len(br.buffer)-1] = newByte
+	br.offset++
+	if readBytes == 0 {
+		br.length--
+	}
+
+	return pop, nil
 }
 
 func (br *bufferedReader) Offset() int64 {
 	return br.offset
 }
 
-func (br *bufferedReader) Len() uint32 {
+func (br *bufferedReader) Len() int {
 	return br.length
 }
 
@@ -54,7 +82,7 @@ func (br *bufferedReader) isEOF() bool {
 }
 
 func (br *bufferedReader) GetHash(calculations func([]byte) []byte) []byte {
-	return calculations(br.buffer)
+	return calculations(br.buffer[:br.length])
 }
 
 func (br *bufferedReader) Get(index int) byte {
@@ -63,4 +91,8 @@ func (br *bufferedReader) Get(index int) byte {
 
 func (br *bufferedReader) Buf() []byte {
 	return br.buffer[:br.length]
+}
+
+func (br *bufferedReader) WindowLen() int {
+	return br.windowLength
 }

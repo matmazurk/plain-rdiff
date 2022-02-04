@@ -14,28 +14,26 @@ func TestReadWindow(t *testing.T) {
 		shift := 5
 		testString := string("15 chars string")
 
-		br := NewBufferedReader(uint32(windowSize), strings.NewReader(testString))
+		br := NewBufferedReader(windowSize, strings.NewReader(testString))
 		anyReads, err := br.ReadWindow()
 		assert.NoError(t, err)
-		assert.True(t, anyReads)
+		assert.True(t, anyReads > 0)
 
-		expectedLen := uint32(windowSize)
-		assert.Equal(t, expectedLen, br.Len())
+		assert.Equal(t, windowSize, br.Len())
 		expectedBytes := []byte(testString[:windowSize])
 		assert.ElementsMatch(t, expectedBytes, br.Buf())
 
 		anyReads, err = br.ReadWindow()
 		assert.NoError(t, err)
-		assert.True(t, anyReads)
+		assert.True(t, anyReads > 0)
 		assert.True(t, br.isEOF())
-		expectedLen = uint32(shift)
-		assert.Equal(t, expectedLen, br.Len())
+		assert.Equal(t, shift, br.Len())
 		expectedBytes = []byte(testString[windowSize:])
 		assert.ElementsMatch(t, expectedBytes, br.Buf())
 
 		anyReads, err = br.ReadWindow()
 		assert.NoError(t, err)
-		assert.False(t, anyReads)
+		assert.False(t, anyReads > 0)
 		assert.True(t, br.isEOF())
 	})
 }
@@ -48,7 +46,7 @@ func TestBuf(t *testing.T) {
 		br := NewBufferedReader(15, strings.NewReader(string(bytes)))
 		anyReads, err := br.ReadWindow()
 		assert.NoError(t, err)
-		assert.True(t, anyReads)
+		assert.True(t, anyReads > 0)
 		assert.Equal(t, bytes, br.Buf())
 	})
 
@@ -66,5 +64,41 @@ func TestBuf(t *testing.T) {
 		}
 
 		assert.ElementsMatch(t, bytes, actualBytes)
+	})
+}
+
+func TestPopAndShift(t *testing.T) {
+	t.Run(
+		`should properly pop and shift through whole input, setting EOF and returning read bytes equal to 0 at the end`,
+		func(t *testing.T) {
+			bytes := make([]byte, 19)
+			rand.Read(bytes)
+			windowSize := 10
+
+			br := NewBufferedReader(windowSize, strings.NewReader(string(bytes)))
+			read, err := br.ReadWindow()
+			assert.NoError(t, err)
+			assert.Equal(t, windowSize, read)
+			bytesFromPops := []byte{}
+			for i := 1; i <= len(bytes)-windowSize; i++ {
+				pop, err := br.PopAndShift()
+				assert.NoError(t, err)
+				assert.Equal(t, int64(i), br.Offset())
+				assert.Equal(t, windowSize, br.Len())
+				bytesFromPops = append(bytesFromPops, pop)
+			}
+			_, err = br.PopAndShift()
+			assert.NoError(t, err)
+			assert.True(t, br.isEOF())
+			assert.Equal(t, int64(len(bytes)-windowSize+1), br.Offset())
+			assert.Equal(t, windowSize-1, br.Len())
+			assert.Equal(t, bytes[:len(bytes)-windowSize], bytesFromPops)
+		},
+	)
+
+	t.Run("should return error when buffer is empty", func(t *testing.T) {
+		br := NewBufferedReader(5, strings.NewReader(string("")))
+		_, err := br.PopAndShift()
+		assert.ErrorIs(t, err, ErrEmptyBuffer)
 	})
 }

@@ -14,11 +14,11 @@ func CalculateAndSendChecksums(
 	defer close(checksumsChan)
 
 	for {
-		anyReads, err := bufferedReader.ReadWindow()
+		readBytes, err := bufferedReader.ReadWindow()
 		if err != nil {
 			return err
 		}
-		if !anyReads {
+		if readBytes == 0 {
 			return nil
 		}
 

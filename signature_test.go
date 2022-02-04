@@ -24,7 +24,7 @@ func TestCalculateAndSendChecksums(t *testing.T) {
 			},
 		}
 		for _, tc := range tcs {
-			br := NewBufferedReader(uint32(tc.windowLength), strings.NewReader(tc.input))
+			br := NewBufferedReader(tc.windowLength, strings.NewReader(tc.input))
 			checksumsChan := make(chan []byte, 3)
 			go func() {
 				err := CalculateAndSendChecksums(
