@@ -5,7 +5,7 @@ import "encoding/binary"
 func CalculateAndSendChecksums(
 	bufferedReader bufferedReader,
 	checksumsChan chan []byte,
-	checksumCalculation func([]byte, int64) uint32,
+	checksumCalculation func([]byte) uint32,
 ) error {
 	defer close(checksumsChan)
 
@@ -18,8 +18,8 @@ func CalculateAndSendChecksums(
 			return nil
 		}
 
-		checksum := checksumCalculation(bufferedReader.Buf(), bufferedReader.Offset())
-		checksumsChan <- getChecksumsBundle(checksum, bufferedReader.MD4())
+		checksum := checksumCalculation(bufferedReader.Buf())
+		checksumsChan <- getBundle(checksum, bufferedReader.MD4())
 
 		if bufferedReader.isEOF() {
 			return nil
@@ -27,8 +27,8 @@ func CalculateAndSendChecksums(
 	}
 }
 
-func getChecksumsBundle(rollingChecksum uint32, hash []byte) []byte {
-	checksums := make([]byte, 4)
-	binary.BigEndian.PutUint32(checksums, rollingChecksum)
-	return append(checksums, hash...)
+func getBundle(rollingChecksum uint32, hash []byte) []byte {
+	checksum := make([]byte, 4)
+	binary.BigEndian.PutUint32(checksum, rollingChecksum)
+	return append(checksum, hash...)
 }
