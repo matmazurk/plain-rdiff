@@ -31,3 +31,10 @@ func CalculateChecksumUsingPreviousCompounds(
 
 	return B<<16 | A, &A, &B
 }
+
+func CalculateChecksum(data []byte, previous *byte, length int, a, b *uint32) (uint32, *uint32, *uint32) {
+	if a == nil && b == nil {
+		return CalculateChecksumWithoutPreviousCompounds(data)
+	}
+	return CalculateChecksumUsingPreviousCompounds(data, *previous, length, *a, *b)
+}
