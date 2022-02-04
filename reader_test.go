@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/md4"
 )
 
 func TestReadWindow(t *testing.T) {
@@ -38,39 +37,6 @@ func TestReadWindow(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, anyReads)
 		assert.True(t, br.isEOF())
-	})
-}
-
-func TestSumBufferBytes(t *testing.T) {
-	t.Run("should properly sum bytes counts", func(t *testing.T) {
-		bytes := make([]byte, 10)
-		rand.Read(bytes)
-		expectedSum := uint32(0)
-		for _, b := range bytes {
-			expectedSum += uint32(b)
-		}
-
-		br := NewBufferedReader(15, strings.NewReader(string(bytes)))
-		anyReads, err := br.ReadWindow()
-		assert.NoError(t, err)
-		assert.True(t, anyReads)
-		assert.Equal(t, expectedSum, br.SumBufferBytes())
-	})
-}
-
-func TestMD4(t *testing.T) {
-	t.Run("should properly calculate MD4", func(t *testing.T) {
-		bytes := make([]byte, 10)
-		rand.Read(bytes)
-		h := md4.New()
-		h.Write(bytes)
-		expectedMD4 := h.Sum(nil)
-
-		br := NewBufferedReader(15, strings.NewReader(string(bytes)))
-		anyReads, err := br.ReadWindow()
-		assert.NoError(t, err)
-		assert.True(t, anyReads)
-		assert.Equal(t, expectedMD4, br.MD4())
 	})
 }
 

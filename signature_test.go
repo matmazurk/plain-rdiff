@@ -9,7 +9,7 @@ import (
 )
 
 func TestCalculateAndSendChecksums(t *testing.T) {
-	t.Run("should properly calculate checksums for various inputs", func(t *testing.T) {
+	t.Run("should calculate proper amount of checksums for various inputs", func(t *testing.T) {
 		tcs := []struct {
 			input        string
 			windowLength int
@@ -43,6 +43,9 @@ func TestCalculateAndSendChecksums(t *testing.T) {
 			}
 			div := float64(len(tc.input)) / float64(tc.windowLength)
 			assert.Len(t, checksums, int(math.Ceil(div)))
+			for _, c := range checksums {
+				assert.Len(t, c, 20)
+			}
 		}
 	})
 }

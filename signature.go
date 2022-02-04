@@ -1,6 +1,10 @@
 package main
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"golang.org/x/crypto/md4"
+)
 
 func CalculateAndSendChecksums(
 	bufferedReader bufferedReader,
@@ -19,7 +23,7 @@ func CalculateAndSendChecksums(
 		}
 
 		checksum := checksumCalculation(bufferedReader.Buf())
-		checksumsChan <- getBundle(checksum, bufferedReader.MD4())
+		checksumsChan <- getBundle(checksum, bufferedReader.GetHash(calculateMD4))
 
 		if bufferedReader.isEOF() {
 			return nil
@@ -31,4 +35,10 @@ func getBundle(rollingChecksum uint32, hash []byte) []byte {
 	checksum := make([]byte, 4)
 	binary.BigEndian.PutUint32(checksum, rollingChecksum)
 	return append(checksum, hash...)
+}
+
+func calculateMD4(data []byte) []byte {
+	h := md4.New()
+	h.Write(data)
+	return h.Sum(nil)
 }

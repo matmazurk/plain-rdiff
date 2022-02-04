@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 	"io"
-
-	"golang.org/x/crypto/md4"
 )
 
 type ReaderSeeker interface {
@@ -51,22 +49,12 @@ func (br *bufferedReader) Len() uint32 {
 	return br.length
 }
 
-func (br *bufferedReader) SumBufferBytes() uint32 {
-	var sum uint32
-	for i := uint32(0); i < br.length; i++ {
-		sum += uint32(br.buffer[i])
-	}
-	return sum
-}
-
 func (br *bufferedReader) isEOF() bool {
 	return br.eof
 }
 
-func (br *bufferedReader) MD4() []byte {
-	h := md4.New()
-	h.Write(br.buffer[:br.length])
-	return h.Sum(nil)
+func (br *bufferedReader) GetHash(calculations func([]byte) []byte) []byte {
+	return calculations(br.buffer)
 }
 
 func (br *bufferedReader) Get(index int) byte {
