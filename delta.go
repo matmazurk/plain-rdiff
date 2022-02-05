@@ -31,12 +31,45 @@ func (r *Range) shiftToBy(shiftLen int) {
 	*r.to += uint64(shiftLen)
 }
 
+type DeltaChunk struct {
+	r *Range
+	d *[]byte
+}
+
+func NewDeltaChunk(r *Range, unmatchedData *[]byte) DeltaChunk {
+	dc := DeltaChunk{}
+	if r != nil {
+		dc.r = r
+		return dc
+	}
+	dc.d = unmatchedData
+	return dc
+}
+
+func (c DeltaChunk) Bytes() []byte {
+	if c.r != nil {
+		bytes := make([]byte, 1+8+8)
+		bytes[0] = byte(1)
+		binary.BigEndian.PutUint64(bytes[1:9], *c.r.from)
+		binary.BigEndian.PutUint64(bytes[9:17], *c.r.to)
+		return bytes
+	}
+	unmatchedDataLen := len(*c.d)
+	bytes := make([]byte, 1+8+unmatchedDataLen)
+	binary.BigEndian.PutUint64(bytes[1:9], uint64(unmatchedDataLen))
+	for i, ii := 9, 0; i < len(bytes); i++ {
+		bytes[i] = (*c.d)[ii]
+		ii++
+	}
+	return bytes
+}
+
 func CalculateAndSendDeltaChunks(
 	referenceFileReader bufferedReader,
 	deltaChunkChan chan<- []byte,
 	rollingChecksumsToIndexes map[uint32]int,
 	hashes [][]byte,
-	getRawDeltaData func(*Range, *[]byte) []byte,
+	getRawDeltaData func(DeltaChunk) []byte,
 	findMatchingOffset func([]byte, [][]byte, uint32, map[uint32]int) (bool, int),
 	checksumCalculation func([]byte, *byte, int, *uint32, *uint32) (uint32, *uint32, *uint32),
 	hashCalculation func([]byte) []byte,
@@ -60,7 +93,7 @@ func CalculateAndSendDeltaChunks(
 			}
 			if readBytes == 0 {
 				if !r.empty() {
-					deltaChunkChan <- getRawDeltaData(&r, nil)
+					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
 				}
 				return nil
 			}
@@ -80,7 +113,7 @@ func CalculateAndSendDeltaChunks(
 		)
 		if matching {
 			if len(unmatchedBytes) > 0 {
-				deltaChunkChan <- getRawDeltaData(nil, &unmatchedBytes)
+				deltaChunkChan <- getRawDeltaData(NewDeltaChunk(nil, &unmatchedBytes))
 				unmatchedBytes = []byte{}
 			}
 			if r.empty() {
@@ -89,7 +122,7 @@ func CalculateAndSendDeltaChunks(
 				if *r.to == uint64(offset) {
 					r.shiftToBy(readBytes)
 				} else {
-					deltaChunkChan <- getRawDeltaData(&r, nil)
+					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
 					r.set(offset, offset+readBytes)
 				}
 			}
@@ -98,7 +131,7 @@ func CalculateAndSendDeltaChunks(
 		}
 
 		if !r.empty() {
-			deltaChunkChan <- getRawDeltaData(&r, nil)
+			deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
 			r.clear()
 		}
 
@@ -106,7 +139,7 @@ func CalculateAndSendDeltaChunks(
 		if err != nil {
 			if errors.Is(err, ErrEmptyBuffer) {
 				if len(unmatchedBytes) > 0 {
-					deltaChunkChan <- getRawDeltaData(nil, &unmatchedBytes)
+					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(nil, &unmatchedBytes))
 				}
 				return nil
 			}
@@ -130,23 +163,4 @@ func findMatchingOffset(
 		}
 	}
 	return false, 0
-}
-
-// bytes: |1,0|uint64|data v uint64|
-func getRawDeltaChunk(r *Range, unmatchedData *[]byte) []byte {
-	if r != nil {
-		bytes := make([]byte, 1+8+8)
-		bytes[0] = byte(1)
-		binary.BigEndian.PutUint64(bytes[1:9], *r.from)
-		binary.BigEndian.PutUint64(bytes[9:17], *r.to)
-		return bytes
-	}
-	unmatchedDataLen := len(*unmatchedData)
-	bytes := make([]byte, 1+8+unmatchedDataLen)
-	binary.BigEndian.PutUint64(bytes[1:9], uint64(unmatchedDataLen))
-	for i, ii := 9, 0; i < len(bytes); i++ {
-		bytes[i] = (*unmatchedData)[ii]
-		ii++
-	}
-	return bytes
 }

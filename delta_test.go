@@ -79,11 +79,11 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 	}
 }
 
-func mockGetDeltaChunk(r *Range, b *[]byte) []byte {
-	if r != nil {
-		return []byte(string(fmt.Sprintf("%d%s%d%s", *r.from, _FROM_TO_SEPARATOR, *r.to, _SEPARATOR)))
+func mockGetDeltaChunk(dc DeltaChunk) []byte {
+	if dc.r != nil {
+		return []byte(string(fmt.Sprintf("%d%s%d%s", *dc.r.from, _FROM_TO_SEPARATOR, *dc.r.to, _SEPARATOR)))
 	}
-	return append(*b, []byte(_SEPARATOR)...)
+	return append(*dc.d, []byte(_SEPARATOR)...)
 }
 
 func mockFindMatchingOffset(
