@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"log"
 )
 
 type Range struct {
@@ -32,33 +34,38 @@ func (r *Range) shiftToBy(shiftLen int) {
 }
 
 type DeltaChunk struct {
-	r *Range
-	d *[]byte
+	r       Range
+	d       []byte
+	rawData bool
 }
 
-func NewDeltaChunk(r *Range, unmatchedData *[]byte) DeltaChunk {
-	dc := DeltaChunk{}
-	if r != nil {
-		dc.r = r
-		return dc
+func NewDeltaChunkWithRange(r Range) DeltaChunk {
+	return DeltaChunk{
+		r: r,
 	}
-	dc.d = unmatchedData
-	return dc
 }
 
-func (c DeltaChunk) Bytes() []byte {
-	if c.r != nil {
+func NewDeltaChunkWithRawData(data []byte) DeltaChunk {
+	return DeltaChunk{
+		d:       data,
+		rawData: true,
+	}
+}
+
+func (c DeltaChunk) ToBytes() []byte {
+	if !c.rawData {
 		bytes := make([]byte, 1+8+8)
 		bytes[0] = byte(1)
+
 		binary.BigEndian.PutUint64(bytes[1:9], *c.r.from)
 		binary.BigEndian.PutUint64(bytes[9:17], *c.r.to)
 		return bytes
 	}
-	unmatchedDataLen := len(*c.d)
+	unmatchedDataLen := len(c.d)
 	bytes := make([]byte, 1+8+unmatchedDataLen)
 	binary.BigEndian.PutUint64(bytes[1:9], uint64(unmatchedDataLen))
 	for i, ii := 9, 0; i < len(bytes); i++ {
-		bytes[i] = (*c.d)[ii]
+		bytes[i] = c.d[ii]
 		ii++
 	}
 	return bytes
@@ -66,10 +73,9 @@ func (c DeltaChunk) Bytes() []byte {
 
 func CalculateAndSendDeltaChunks(
 	referenceFileReader bufferedReader,
-	deltaChunkChan chan<- []byte,
+	deltaChunkChan chan<- DeltaChunk,
 	rollingChecksumsToIndexes map[uint32]int,
 	hashes [][]byte,
-	getRawDeltaData func(DeltaChunk) []byte,
 	findMatchingOffset func([]byte, [][]byte, uint32, map[uint32]int) (bool, int),
 	checksumCalculation func([]byte, *byte, int, *uint32, *uint32) (uint32, *uint32, *uint32),
 	hashCalculation func([]byte) []byte,
@@ -93,11 +99,16 @@ func CalculateAndSendDeltaChunks(
 			}
 			if readBytes == 0 {
 				if !r.empty() {
-					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
+					if r.from == nil || r.to == nil {
+						panic("nil rrrr")
+					}
+					deltaChunkChan <- NewDeltaChunkWithRange(r)
 				}
 				return nil
 			}
 		}
+		fmt.Print("\033[H\033[2J")
+		log.Println("offset:", referenceFileReader.Offset())
 		checksum, a, b = checksumCalculation(
 			referenceFileReader.Buf(),
 			pop,
@@ -112,40 +123,49 @@ func CalculateAndSendDeltaChunks(
 			rollingChecksumsToIndexes,
 		)
 		if matching {
+			a, b = nil, nil
 			if len(unmatchedBytes) > 0 {
-				deltaChunkChan <- getRawDeltaData(NewDeltaChunk(nil, &unmatchedBytes))
+				deltaChunkChan <- NewDeltaChunkWithRawData(unmatchedBytes)
 				unmatchedBytes = []byte{}
 			}
 			if r.empty() {
-				r.set(offset, offset+referenceFileReader.Len())
-			} else {
-				if *r.to == uint64(offset) {
-					r.shiftToBy(readBytes)
-				} else {
-					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
-					r.set(offset, offset+readBytes)
-				}
+				r.set(offset*referenceFileReader.WindowLen(), offset*referenceFileReader.WindowLen()+readBytes)
+				continue
 			}
-			a, b = nil, nil
+			if *r.to == uint64(offset*referenceFileReader.WindowLen()) {
+				r.shiftToBy(readBytes)
+				continue
+			}
+
+			if r.from == nil || r.to == nil {
+				panic("nil rrrr")
+			}
+			deltaChunkChan <- NewDeltaChunkWithRange(r)
+			r.set(offset*referenceFileReader.WindowLen(), offset*referenceFileReader.WindowLen()+readBytes)
 			continue
 		}
 
 		if !r.empty() {
-			deltaChunkChan <- getRawDeltaData(NewDeltaChunk(&r, nil))
+			if r.from == nil || r.to == nil {
+				panic("nil rrrr")
+			}
+			deltaChunkChan <- NewDeltaChunkWithRange(r)
 			r.clear()
 		}
 
-		pop, err := referenceFileReader.PopAndShift()
+		p, err := referenceFileReader.PopAndShift()
+		pop = &p
 		if err != nil {
 			if errors.Is(err, ErrEmptyBuffer) {
 				if len(unmatchedBytes) > 0 {
-					deltaChunkChan <- getRawDeltaData(NewDeltaChunk(nil, &unmatchedBytes))
+					deltaChunkChan <- NewDeltaChunkWithRawData(unmatchedBytes)
+					unmatchedBytes = []byte{}
 				}
 				return nil
 			}
 			return err
 		}
-		unmatchedBytes = append(unmatchedBytes, pop)
+		unmatchedBytes = append(unmatchedBytes, p)
 	}
 }
 

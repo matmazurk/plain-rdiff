@@ -53,14 +53,13 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			br := NewBufferedReader(10, strings.NewReader(tc.referenceFileContent))
 
-			deltaChunkChan := make(chan []byte)
+			deltaChunkChan := make(chan DeltaChunk)
 			go func() {
 				err := CalculateAndSendDeltaChunks(
 					br,
 					deltaChunkChan,
 					nil,
 					nil,
-					mockGetDeltaChunk,
 					mockFindMatchingOffset(tc.oldFileContent),
 					mockCalculateChecksum,
 					mockHashCalculation,
@@ -68,22 +67,22 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			deltaChunks := []byte{}
+			deltaChunks := []DeltaChunk{}
 			for chunk := range deltaChunkChan {
-				deltaChunks = append(deltaChunks, chunk...)
+				deltaChunks = append(deltaChunks, chunk)
 			}
 
-			referenceFileFromDelta := getReferenceFileFromDelta(tc.oldFileContent, string(deltaChunks))
+			referenceFileFromDelta := getReferenceFileFromDelta(tc.oldFileContent, "")
 			assert.Equal(t, tc.referenceFileContent, referenceFileFromDelta)
 		})
 	}
 }
 
 func mockGetDeltaChunk(dc DeltaChunk) []byte {
-	if dc.r != nil {
+	if !dc.rawData {
 		return []byte(string(fmt.Sprintf("%d%s%d%s", *dc.r.from, _FROM_TO_SEPARATOR, *dc.r.to, _SEPARATOR)))
 	}
-	return append(*dc.d, []byte(_SEPARATOR)...)
+	return append(dc.d, []byte(_SEPARATOR)...)
 }
 
 func mockFindMatchingOffset(
