@@ -30,8 +30,9 @@ func TestCalculateAndSendChecksums(t *testing.T) {
 				err := CalculateAndSendChecksums(
 					br,
 					checksumsChan,
-					func(b []byte) uint32 {
-						return uint32(0)
+					func(b []byte) (uint32, *uint32, *uint32) {
+						s := uint32(0)
+						return uint32(0), &s, &s
 					},
 				)
 				assert.NoError(t, err)

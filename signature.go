@@ -9,7 +9,7 @@ import (
 func CalculateAndSendChecksums(
 	bufferedReader bufferedReader,
 	checksumsChan chan []byte,
-	checksumCalculation func([]byte) uint32,
+	checksumCalculation func([]byte) (uint32, *uint32, *uint32),
 ) error {
 	defer close(checksumsChan)
 
@@ -22,7 +22,7 @@ func CalculateAndSendChecksums(
 			return nil
 		}
 
-		checksum := checksumCalculation(bufferedReader.Buf())
+		checksum, _, _ := checksumCalculation(bufferedReader.Buf())
 		checksumsChan <- getBundle(checksum, bufferedReader.GetHash(calculateMD4))
 
 		if bufferedReader.isEOF() {
