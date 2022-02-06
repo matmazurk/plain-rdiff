@@ -1,16 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-const _SEPARATOR = "~"
-const _FROM_TO_SEPARATOR = ":"
+const _WINDOW_SIZE = 10
 
 func TestCalculateAndSendDeltaChunks(t *testing.T) {
 	tcs := []struct {
@@ -51,7 +48,7 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			br := NewBufferedReader(10, strings.NewReader(tc.referenceFileContent))
+			br := NewBufferedReader(_WINDOW_SIZE, strings.NewReader(tc.referenceFileContent))
 
 			deltaChunkChan := make(chan DeltaChunk)
 			go func() {
@@ -72,25 +69,23 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 				deltaChunks = append(deltaChunks, chunk)
 			}
 
-			referenceFileFromDelta := getReferenceFileFromDelta(tc.oldFileContent, "")
+			referenceFileFromDelta := getReferenceFileFromDelta(tc.oldFileContent, deltaChunks)
 			assert.Equal(t, tc.referenceFileContent, referenceFileFromDelta)
 		})
 	}
-}
-
-func mockGetDeltaChunk(dc DeltaChunk) []byte {
-	if !dc.rawData {
-		return []byte(string(fmt.Sprintf("%d%s%d%s", *dc.r.from, _FROM_TO_SEPARATOR, *dc.r.to, _SEPARATOR)))
-	}
-	return append(dc.d, []byte(_SEPARATOR)...)
 }
 
 func mockFindMatchingOffset(
 	refFile string,
 ) func([]byte, [][]byte, uint32, map[uint32]int) (bool, int) {
 	return func(h []byte, _ [][]byte, _ uint32, _ map[uint32]int) (bool, int) {
+		if len(refFile) == 0 || len(h) == 0 {
+			return false, 0
+		}
 		if r := strings.Index(refFile, string(h)); r != -1 {
-			return true, r
+			if r%_WINDOW_SIZE == 0 {
+				return true, r / _WINDOW_SIZE
+			}
 		}
 		return false, 0
 	}
@@ -106,18 +101,14 @@ func mockHashCalculation(data []byte) []byte {
 	return data
 }
 
-func getReferenceFileFromDelta(oldFileContent, delta string) string {
+func getReferenceFileFromDelta(oldFileContent string, deltaChunks []DeltaChunk) string {
 	var originalFileFromDelta strings.Builder
-	splits := strings.Split(delta, _SEPARATOR)
-	for _, split := range splits {
-		if strings.Contains(split, _FROM_TO_SEPARATOR) {
-			vals := strings.Split(split, _FROM_TO_SEPARATOR)
-			from, _ := strconv.Atoi(vals[0])
-			to, _ := strconv.Atoi(vals[1])
-			originalFileFromDelta.WriteString(oldFileContent[from:to])
+	for _, chunk := range deltaChunks {
+		if !chunk.rawData {
+			originalFileFromDelta.WriteString(oldFileContent[*chunk.r.from:*chunk.r.to])
 			continue
 		}
-		originalFileFromDelta.WriteString(split)
+		originalFileFromDelta.WriteString(string(chunk.d))
 	}
 	return originalFileFromDelta.String()
 }
