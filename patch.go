@@ -7,7 +7,7 @@ type ReaderAt interface {
 func Patch(deltaChunksChan chan DeltaChunk, oldFileReader ReaderAt, newFileWriterChan chan []byte) error {
 	defer close(newFileWriterChan)
 	for ss := range deltaChunksChan {
-		if ss.r != nil {
+		if !ss.rawData {
 			from := *ss.r.from
 			to := *ss.r.to
 			blockLen := to - from
@@ -18,7 +18,7 @@ func Patch(deltaChunksChan chan DeltaChunk, oldFileReader ReaderAt, newFileWrite
 			}
 			newFileWriterChan <- data
 		} else {
-			newFileWriterChan <- *ss.d
+			newFileWriterChan <- ss.d
 		}
 	}
 	return nil
