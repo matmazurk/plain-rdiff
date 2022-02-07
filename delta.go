@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
-	"log"
 )
 
 type Range struct {
@@ -99,16 +97,11 @@ func CalculateAndSendDeltaChunks(
 			}
 			if readBytes == 0 {
 				if !r.empty() {
-					if r.from == nil || r.to == nil {
-						panic("nil rrrr")
-					}
 					deltaChunkChan <- NewDeltaChunkWithRange(r)
 				}
 				return nil
 			}
 		}
-		fmt.Print("\033[H\033[2J")
-		log.Println("offset:", referenceFileReader.Offset())
 		checksum, a, b = checksumCalculation(
 			referenceFileReader.Buf(),
 			pop,
@@ -137,18 +130,12 @@ func CalculateAndSendDeltaChunks(
 				continue
 			}
 
-			if r.from == nil || r.to == nil {
-				panic("nil rrrr")
-			}
 			deltaChunkChan <- NewDeltaChunkWithRange(r)
 			r.set(offset*referenceFileReader.WindowLen(), offset*referenceFileReader.WindowLen()+readBytes)
 			continue
 		}
 
 		if !r.empty() {
-			if r.from == nil || r.to == nil {
-				panic("nil rrrr")
-			}
 			deltaChunkChan <- NewDeltaChunkWithRange(r)
 			r.clear()
 		}
