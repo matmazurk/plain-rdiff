@@ -110,7 +110,7 @@ func CalculateAndSendDeltaChunks(
 			b,
 		)
 		matching, offset := findMatchingOffset(
-			referenceFileReader.GetHash(hashCalculation),
+			referenceFileReader.Buf(),
 			hashes,
 			checksum,
 			rollingChecksumsToIndexes,
@@ -146,7 +146,6 @@ func CalculateAndSendDeltaChunks(
 			if errors.Is(err, ErrEmptyBuffer) {
 				if len(unmatchedBytes) > 0 {
 					deltaChunkChan <- NewDeltaChunkWithRawData(unmatchedBytes)
-					unmatchedBytes = []byte{}
 				}
 				return nil
 			}
@@ -157,17 +156,14 @@ func CalculateAndSendDeltaChunks(
 }
 
 func findMatchingOffset(
-	hash []byte,
+	block []byte,
 	hashes [][]byte,
 	checksum uint32,
 	checksums map[uint32]int,
 ) (bool, int) {
-	for c, i := range checksums {
-		if c == checksum {
-			if bytes.Equal(hash, hashes[i]) {
-				return true, i
-			}
-		}
+	index, ok := checksums[checksum]
+	if ok && bytes.Equal(calculateMD4(block), hashes[index]) {
+		return true, index
 	}
 	return false, 0
 }
