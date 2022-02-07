@@ -57,10 +57,7 @@ func (br *bufferedReader) PopAndShift() (byte, error) {
 	}
 	newByte := buf[0]
 	pop := br.buffer[0]
-	for i := 0; i < len(br.buffer)-1; i++ {
-		br.buffer[i] = br.buffer[i+1]
-	}
-	br.buffer[len(br.buffer)-1] = newByte
+	br.buffer = append(br.buffer[1:], newByte)
 	br.offset++
 	if readBytes == 0 {
 		br.length--

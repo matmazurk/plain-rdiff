@@ -43,7 +43,7 @@ func main() {
 		if exists(fmt.Sprintf("%s/%s", getExecutionDir(), signatureFile)) {
 			log.Fatalf("provided signature file already exists")
 		}
-		signatureFlow(oldFile, signatureFile)
+		signatureFlow(oldFile, signatureFile, WINDOW_LENGTH)
 	case MODE_DELTA:
 		if len(os.Args) != 5 {
 			log.Fatal(DELTA_USAGE)
@@ -60,7 +60,7 @@ func main() {
 		if exists(fmt.Sprintf("%s/%s", getExecutionDir(), deltaFile)) {
 			log.Fatalf("provided delta file already exists")
 		}
-		deltaFlow(signatureFile, newFile, deltaFile)
+		deltaFlow(signatureFile, newFile, deltaFile, WINDOW_LENGTH)
 	case MODE_PATCH:
 		if len(os.Args) != 5 {
 			log.Fatal(PATCH_USAGE)
@@ -103,7 +103,7 @@ func exists(path string) bool {
 	return false
 }
 
-func signatureFlow(oldFilePath, signatureFilePath string) {
+func signatureFlow(oldFilePath, signatureFilePath string, windowSize int) {
 	c := make(chan []byte)
 
 	go func() {
@@ -112,7 +112,7 @@ func signatureFlow(oldFilePath, signatureFilePath string) {
 			log.Fatal(err)
 		}
 
-		bufferedReader := NewBufferedReader(WINDOW_LENGTH, reader)
+		bufferedReader := NewBufferedReader(windowSize, reader)
 		err = CalculateAndSendChecksums(bufferedReader, c, CalculateChecksumWithoutPreviousCompounds)
 		if err != nil {
 			log.Fatal(err)
@@ -125,7 +125,7 @@ func signatureFlow(oldFilePath, signatureFilePath string) {
 	}
 }
 
-func deltaFlow(signatureFilePath, newFilePath, deltaFilePath string) {
+func deltaFlow(signatureFilePath, newFilePath, deltaFilePath string, windowSize int) {
 	bundles, err := ReadSignatureFile(signatureFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -140,7 +140,7 @@ func deltaFlow(signatureFilePath, newFilePath, deltaFilePath string) {
 	c := make(chan DeltaChunk)
 	go func() {
 		checksums, hashes := getRollingChecksumAndHashes(bundles)
-		br := NewBufferedReader(WINDOW_LENGTH, reader)
+		br := NewBufferedReader(windowSize, reader)
 		err := CalculateAndSendDeltaChunks(
 			br,
 			c,
