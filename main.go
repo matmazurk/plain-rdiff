@@ -148,7 +148,6 @@ func deltaFlow(signatureFilePath, newFilePath, deltaFilePath string, windowSize 
 			hashes,
 			findMatchingOffset,
 			CalculateChecksum,
-			calculateMD4,
 		)
 		if err != nil {
 			panic(err)

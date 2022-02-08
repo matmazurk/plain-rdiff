@@ -76,7 +76,6 @@ func CalculateAndSendDeltaChunks(
 	hashes [][]byte,
 	findMatchingOffset func([]byte, [][]byte, uint32, map[uint32]int) (bool, int),
 	checksumCalculation func([]byte, *byte, int, *uint32, *uint32) (uint32, *uint32, *uint32),
-	hashCalculation func([]byte) []byte,
 ) error {
 	defer close(deltaChunkChan)
 

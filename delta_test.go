@@ -59,7 +59,6 @@ func TestCalculateAndSendDeltaChunks(t *testing.T) {
 					nil,
 					mockFindMatchingOffset(tc.oldFileContent),
 					mockCalculateChecksum,
-					mockHashCalculation,
 				)
 				assert.NoError(t, err)
 			}()
