@@ -27,7 +27,17 @@ func TestRdiffFile(t *testing.T) {
 		{
 			filesLen:        math.MaxUint32 + 1000,
 			windowSize:      1_000_000,
+			noOfDifferences: 10,
+		},
+		{
+			filesLen:        math.MaxUint32 + 1000,
+			windowSize:      10_000_000,
 			noOfDifferences: 0,
+		},
+		{
+			filesLen:        100_000_000,
+			windowSize:      20_000,
+			noOfDifferences: 10000,
 		},
 	}
 	for _, tc := range tcs {
