@@ -2,17 +2,20 @@
 
 Simple implementation of rdiff functionalities.
 
-## Usage
-
-rdiff signature old-file signature-file \
-rdiff delta signature-file new-file delta-file \
-rdiff patch basis-file delta-file new-file
-
 ## Build
 
 ```bash
 go build -o plain-rdiff .
 ```
+
+## Usage
+
+```bash
+plain-rdiff signature old-file signature-file
+plain-rdiff delta signature-file new-file delta-file
+plain-rdiff patch basis-file delta-file new-file
+```
+
 
 ## Testing
 
